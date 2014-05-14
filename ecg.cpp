@@ -55,7 +55,7 @@ void main(){
 	int annNum = 0;
 	annNum = ann.GetEcgAnnotationSize();
 	
-	wprintf(L"Total beats: %d\n", ann.GetQrsNumber()); 
+	//wprintf(L"Total beats: %d\n", ann.GetQrsNumber()); 
 	for (int i = 0; i < ann.GetQrsNumber(); i++) {
                                         int smpl = qrsAnn[2*i][0];
                                         int type = qrsAnn[(2*i)][1];
