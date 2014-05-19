@@ -38,9 +38,9 @@ wchar_t params[_MAX_PATH] = L"params";
 
 void main(){
 	const wchar_t * argv;
-	argv = L"232.dat";
+	argv = L"106.dat";
 	class Signal signal;
-	signal.ReadFile("232.dat");
+	signal.ReadFile("106.dat");
 	double* data = signal.GetData(0);
 	double* data_lead2 = signal.GetData(1);
 	int size = signal.GetLength();
@@ -54,174 +54,103 @@ void main(){
     int msec = int(((double)size / sr) * 1000.0);
 	int annNum = 0;
 	annNum = ann.GetEcgAnnotationSize();
-	wprintf(L"Hej hej");
+	
+	
+	int tt = 0;
 	wprintf(L"Total beats: %d\n", ann.GetQrsNumber()); 
-	for (int i = 0; i < ann.GetQrsNumber(); i++) {
-                                        int smpl = qrsAnn[2*i][0];
-                                        int type = qrsAnn[(2*i)][1];
-										int qrsComplex = ((qrsAnn[(2*i)+1][0])-(qrsAnn[2*i][0]));
-										msec = int(((double)smpl / sr) * 1000.0);
-                                        qrsComplex = int(((double)qrsComplex / sr) * 1000.0);
-                                        signal.mSecToTime(msec, h, m, s, ms);
-										if(i==0){
-											wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: 0.000 %s\n", smpl, h, m, s, ms,anncodes[type] );
-										}
-										if((i-1)>=0 && qrsComplex < 120){
-											wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: %.3f QRS complex: %d %s\n", smpl, h, m, s, ms, RRs[i-1], qrsComplex, anncodes[type] );
-										}
-										if((i-1)>=0 && qrsComplex >= 120){
-											wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: %.3f QRS complex: %d PACE\n", smpl, h, m, s, ms, RRs[i-1], qrsComplex );
-										}
-                                }
-	//int annNum = 0;
+	
+	
+	
     int** ANN = ann.GetPTU(data, size, sr, L"filters", qrsAnn, ann.GetQrsNumber());     //find P,T waves
-	vector<double> rrs;
-    vector<int> rrsPos;
-	ann.GetRRseq(ANN, annNum, sr, &rrs, &rrsPos);	//rrs[] = heart rate, rrsPos[] = samplingen för R
 	
-	
-	/*for (int j=0;j<rrs.size();j++){
-		wprintf(L"Heart beat: %03f\n", rrs[j]);
-	};*/
-	//wchar_t *annName[_MAX_PATH];
-	wchar_t *annName = new wchar_t[size];
-	annName[_MAX_PATH];
-	//wcscpy(annName, argv);
-	//change_extension(annName, L".PQ");
-	//ann.SavePQseq(annName, ANN, annNum, sr, size);
-	//change_extension(annName, L".QT");
-	//ann.SaveQTseq(annName, ANN, annNum, sr, size);
-	//change_extension(annName, L".PP");
-	//ann.SavePPseq(annName, ANN, annNum, sr, size);
-	
-	
+	vector<int> pWaveLength;
+	vector<int> tWaveLength;
+	int pWave = 0;
+	int tWave = 0;
+	int j =0;
+	int smpl = 0;
+	int pk =0;
+	pWaveLength.push_back(0);		//First beat doesn't have a P-wave
 
-	wcscpy(annName, argv);
-	change_extension(annName, L".atr");
-    ann.SaveAnnotation(annName, ANN, annNum);
+	//Loop to find P- and T-wave for each beat
+	for (int i = 0; i < ann.GetQrsNumber(); i++){
+		smpl = qrsAnn[2*i][0];	//The sample for the start of every QRS Complex (N and ECG)		
+		
+		while(smpl != ANN[j][0]){	//Find the place for this sample in the array where all annotations are stored (ANN)
+			j++;
+		}
+		while(ANN[j+pk][1] != 44 && (j+pk) < ann.GetEcgAnnotationSize()-1){	//Find the start of the T wave, which is equal to 44. (might add pk<5) 
+			pk++;
+		}
+		if(ANN[j+pk][1] == 44){		//if T-wave is found
+			tWave = ANN[(j+pk)+2][0]-ANN[j+pk][0];	//calculate the length of the wave, the result is in samples
+		}
+		else{
+			tWave = 0;	//if no T-wave is found
+		}
+		tWaveLength.push_back(tWave);	//Add the P-wave length to an array
+		pk =0;
+
+		//Find the P-wave
+		if(j>3){	
+			if(ANN[j-3][1] == 42){	//If the 3rd place before the start of the QRS complex is indicating a start of a p-wave  
+				pWave = ANN[j-1][0] - ANN[j-3][0];	//calculate the length of the wave, the result is in samples
+			}
+			else{
+				pWave = 0;
+			}
+			pWaveLength.push_back(pWave);
+		}
+		
+	}
+	int pWaveMilliSec, tWaveMilliSec;
+	
+	//Loop to print the information for each heart beat
+	for (int i = 0; i < ann.GetQrsNumber(); i++) {
+
+		int smpl = qrsAnn[2*i][0];
+		int type = qrsAnn[(2*i)][1];
+		int qrsComplex = ((qrsAnn[(2*i)+1][0])-(qrsAnn[2*i][0]));
+
+		//convert to milliseconds
+        qrsComplex = int(((double)qrsComplex / sr) * 1000.0);
+		pWaveMilliSec = int(((double)pWaveLength[i] / sr) * 1000.0);
+		tWaveMilliSec = int(((double)tWaveLength[i] / sr) * 1000.0);
+		msec = int(((double)smpl / sr) * 1000.0);
+        signal.mSecToTime(msec, h, m, s, ms);
+		
+		//just the first heart beat
+		if(i==0){
+			wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: 0.000 %s\n", smpl, h, m, s, ms,anncodes[type] );
+		}
+		
+		//If a normal heart beat, but the QRS complex exceeds 120 ms
+		if (type == 1 && qrsComplex >= 120 && (i-1)>=0){
+			wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: %.3f QRS complex: %d PACE\n", smpl, h, m, s, ms, RRs[i-1], qrsComplex );
+		}
+
+		//Print all other heart beats
+		if((i-1)>=0 && (type == 1 || type == 46) ){
+			wprintf(L"%10d %02d:%02d:%02d.%03d RR.int: %.3f P wave: %d T wave: %d  QRS: %d %s\n", smpl, h, m, s, ms, RRs[i-1], pWaveMilliSec, tWaveMilliSec, qrsComplex, anncodes[type] );
+		}
+    }
+
+	annNum = ann.GetEcgAnnotationSize();	//get the number of all annotations
+
+	//print information about all annotations
 	for (int i = 0; i < annNum; i++) {
-                                        int smpl = ANN[i][0];
-                                        int type = ANN[i][1];
+		int sampl = ANN[i][0];
+        int type = ANN[i][1];
 
-                                        msec = int(((double)smpl / sr) * 1000.0);
-                                        signal.mSecToTime(msec, h, m, s, ms);
+        msec = int(((double)sampl / sr) * 1000.0);
+        signal.mSecToTime(msec, h, m, s, ms);
 
-                                        wprintf(L"%10d %02d:%02d:%02d.%03d   %s\n", smpl, h, m, s, ms, anncodes[type]);
-                                }
+        wprintf(L"%10d %02d:%02d:%02d.%03d   %s\n", sampl, h, m, s, ms, anncodes[type]);
+	}
 	
 	 
 }
-
-/*int _tmain(int argc, _TCHAR* argv[])
-{
-        wchar_t annName[_MAX_PATH];
-        wchar_t hrvName[_MAX_PATH];
-        
-        if (argc < 2) {
-                help();
-        } else {
-                int leadNumber = 0;
-                if (argc == 2 + 1) {
-                        leadNumber = _wtoi(argv[2]) - 1;
-                        if (leadNumber < 0) leadNumber = 0;
-                }
-
-                class Signal signal;
-                if (signal.ReadFile(argv[1])) {
-
-                        int size = signal.GetLength();
-                        double sr = signal.GetSR();
-                        int h, m, s, ms;
-                        int msec = int(((double)size / sr) * 1000.0);
-                        signal.mSecToTime(msec, h, m, s, ms);
-
-                        wprintf(L"  leads: %d\n", signal.GetLeadsNum());
-                        wprintf(L"     sr: %.2lf Hz\n", sr);
-                        wprintf(L"   bits: %d\n", signal.GetBits());
-                        wprintf(L"    UmV: %d\n", signal.GetUmV());
-                        wprintf(L" length: %02d:%02d:%02d.%03d\n\n", h, m, s, ms);
-                        
-                        double* data = signal.GetData(leadNumber);
-
-                        //annotation
-                        class EcgAnnotation ann;  //default annotation params
-
-                        //or add your custom ECG params to annotation class from lib.h
-                        // ANNHDR hdr;
-                        //  hdr.minbpm = 30;
-                        //  etc...
-                        // class EcgAnnotation ann( &hdr );
-
-
-                        wprintf(L" getting QRS complexes... ");
-                        tic();
-                        int** qrsAnn = ann.GetQRS(data, size, sr, L"filters");         //get QRS complexes
-                        //qrsAnn = ann->GetQRS(psig, size, SR, L"filters", qNOISE);    //get QRS complexes if signal is quite noisy
-
-                        if (qrsAnn) {
-                                wprintf(L" %d beats.\n", ann.GetQrsNumber());
-                                ann.GetEctopics(qrsAnn, ann.GetQrsNumber(), sr);        //label Ectopic beats
-
-                                wprintf(L" getting P, T waves... ");
-                                int annNum = 0;
-                                int** ANN = ann.GetPTU(data, size, sr, L"filters", qrsAnn, ann.GetQrsNumber());     //find P,T waves
-                                if (ANN) {
-                                        annNum = ann.GetEcgAnnotationSize();
-                                        wprintf(L" done.\n");
-                                        toc();
-                                        wprintf(L"\n");
-                                        //save ECG annotation
-                                        wcscpy(annName, argv[1]);
-                                        change_extension(annName, L".atr");
-                                        ann.SaveAnnotation(annName, ANN, annNum);
-                                } else {
-                                        ANN = qrsAnn;
-                                        annNum = 2 * ann.GetQrsNumber();
-                                        wprintf(L" failed.\n");
-                                        toc();
-                                        wprintf(L"\n");
-                                }
-                                
-                                //printing out annotation
-                                for (int i = 0; i < annNum; i++) {
-                                        int smpl = ANN[i][0];
-                                        int type = ANN[i][1];
-
-                                        msec = int(((double)smpl / sr) * 1000.0);
-                                        signal.mSecToTime(msec, h, m, s, ms);
-
-                                        wprintf(L"%10d %02d:%02d:%02d.%03d   %s\n", smpl, h, m, s, ms, anncodes[type]);
-                                }
-
-                                //saving RR seq
-                                vector<double> rrs;
-                                vector<int> rrsPos;
-
-                                wcscpy(hrvName, argv[1]);
-                                change_extension(hrvName, L".hrv");
-                                if (ann.GetRRseq(ANN, annNum, sr, &rrs, &rrsPos)) {
-                                        FILE *fp = _wfopen(hrvName, L"wt");
-                                        for (int i = 0; i < (int)rrs.size(); i++)
-                                                fwprintf(fp, L"%lf\n", rrs[i]);
-                                        fclose(fp);
-
-                                        wprintf(L"\n mean heart rate: %.2lf", signal.Mean(&rrs[0], (int)rrs.size()));
-                                }
-
-                        } else {
-                                wprintf(L"could not get QRS complexes. make sure you have got \"filters\" directory in the ecg application dir.");
-                                exit(1);
-                        }
-
-                } else {
-                        wprintf(L"failed to read %s file", argv[1]);
-                        exit(1);
-                }
-
-        }
-
-        return 0;
-}*/
+	
 
 void help()
 {
