@@ -44,7 +44,7 @@ public:
 
 // Operations
         int** GetQRS(const double *data, int size, double sr, wchar_t *fltdir = 0);        //get RR's classification
-        void GetEctopics(int **ann, int qrsnum, double sr, vector<double> *RRs) const;                                                      //classify ectopic beats
+        void GetEctopics(int **ann, int qrsnum, double sr, vector<double> *RRs, vector<double>*QRS) const;                                                      //classify ectopic beats
         int** GetPTU(const double *data, int length, double sr, wchar_t *fltdir, int **ann, int qrsnum);
         
         void AddAnnotationOffset(int add);    //add if annotated within fromX-toX
